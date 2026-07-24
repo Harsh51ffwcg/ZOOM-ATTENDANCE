@@ -2,17 +2,28 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import csv from "csv-parser";
+import { batches } from "@/lib/batches";
 
-const MINIMUM_DURATION = 5 * 60; // 5 minutes
+const MINIMUM_DURATION = 5 * 60; // 5 Minutes
+const MEETING_ID = "84458417524";
 
-async function readStudents() {
+async function readStudents(batch: string) {
   const students: any[] = [];
 
-  return new Promise<any[]>((resolve) => {
-    fs.createReadStream(path.join(process.cwd(), "students.csv"))
+  const batchInfo = (batches as any)[batch];
+
+  if (!batchInfo) {
+    throw new Error("Invalid batch selected.");
+  }
+
+  return new Promise<any[]>((resolve, reject) => {
+    fs.createReadStream(
+      path.join(process.cwd(), "students", batchInfo.csv)
+    )
       .pipe(csv())
       .on("data", (row) => students.push(row))
-      .on("end", () => resolve(students));
+      .on("end", () => resolve(students))
+      .on("error", reject);
   });
 }
 
@@ -21,7 +32,9 @@ async function getAccessToken() {
   const clientId = process.env.ZOOM_CLIENT_ID!;
   const clientSecret = process.env.ZOOM_CLIENT_SECRET!;
 
-  const auth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const auth = Buffer.from(
+    `${clientId}:${clientSecret}`
+  ).toString("base64");
 
   const response = await fetch(
     `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${accountId}`,
@@ -34,103 +47,154 @@ async function getAccessToken() {
   );
 
   const data = await response.json();
+
+  if (!data.access_token) {
+    throw new Error("Unable to get Zoom access token.");
+  }
+
   return data.access_token;
 }
 
-export async function GET() {
-  const students = await readStudents();
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
 
-  const token = await getAccessToken();
+    const batch =
+      searchParams.get("batch") || "batch1";
 
-  // Replace with your Zoom Meeting ID
-  const meetingId = "84458417524";
+    const batchInfo = (batches as any)[batch];
 
-  const response = await fetch(
-    `https://api.zoom.us/v2/report/meetings/${meetingId}/participants`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+    if (!batchInfo) {
+      return NextResponse.json(
+        {
+          error: "Invalid batch.",
+        },
+        {
+          status: 400,
+        }
+      );
     }
-  );
 
-  const zoomData = await response.json();
+    const students = await readStudents(batch);
 
-  const participants = zoomData.participants || [];
+    const token = await getAccessToken();
 
-  const attendance = students.map((student: any) => {
-    const matches = participants.filter(
-      (p: any) =>
-        p.name.trim().toLowerCase() ===
-        student.Name.trim().toLowerCase()
+    const response = await fetch(
+      `https://api.zoom.us/v2/report/meetings/${MEETING_ID}/participants`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
     );
 
-    if (matches.length === 0) {
+    const zoomData = await response.json();
+
+    const participants = zoomData.participants || [];
+
+    const attendance = students.map((student: any) => {
+      const matches = participants.filter(
+        (participant: any) =>
+          participant.name
+            ?.trim()
+            .toLowerCase() ===
+          student.Name.trim().toLowerCase()
+      );
+
+      if (matches.length === 0) {
+        return {
+          StudentID: student.StudentID,
+          Name: student.Name,
+          Phone: student.Phone,
+          Email: student.Email,
+          Present: false,
+          JoinTime: null,
+          LeaveTime: null,
+          Duration: 0,
+        };
+      }
+
+      const totalDuration = matches.reduce(
+        (sum: number, current: any) =>
+          sum + (current.duration || 0),
+        0
+      );
+
+      const firstJoin = matches.reduce(
+        (earliest: any, current: any) =>
+          new Date(current.join_time) <
+          new Date(earliest.join_time)
+            ? current
+            : earliest
+      );
+
+      const lastLeave = matches.reduce(
+        (latest: any, current: any) =>
+          new Date(current.leave_time) >
+          new Date(latest.leave_time)
+            ? current
+            : latest
+      );
+
       return {
         StudentID: student.StudentID,
         Name: student.Name,
         Phone: student.Phone,
         Email: student.Email,
-        Present: false,
-        JoinTime: null,
-        LeaveTime: null,
-        Duration: 0,
+        Present:
+          totalDuration >= MINIMUM_DURATION,
+        JoinTime: firstJoin.join_time,
+        LeaveTime: lastLeave.leave_time,
+        Duration: totalDuration,
       };
-    }
+    });
 
-    const firstJoin = matches.reduce((earliest: any, current: any) =>
-      new Date(current.join_time) < new Date(earliest.join_time)
-        ? current
-        : earliest
+    const presentStudents = attendance.filter(
+      (student) => student.Present
     );
 
-    const lastLeave = matches.reduce((latest: any, current: any) =>
-      new Date(current.leave_time) > new Date(latest.leave_time)
-        ? current
-        : latest
+    const absentStudents = attendance.filter(
+      (student) => !student.Present
     );
 
-    const totalDuration = matches.reduce(
-      (sum: number, current: any) => sum + current.duration,
-      0
+    return NextResponse.json({
+      batch,
+
+      batchName: batchInfo.name,
+
+      summary: {
+        totalStudents: attendance.length,
+
+        present: presentStudents.length,
+
+        absent: absentStudents.length,
+
+        attendancePercentage:
+          (
+            (presentStudents.length /
+              attendance.length) *
+            100
+          ).toFixed(1) + "%",
+      },
+
+      attendance,
+
+      presentStudents,
+
+      absentStudents,
+    });
+  } catch (error: any) {
+    console.error(error);
+
+    return NextResponse.json(
+      {
+        error:
+          error.message ||
+          "Something went wrong.",
+      },
+      {
+        status: 500,
+      }
     );
-
-    return {
-      StudentID: student.StudentID,
-      Name: student.Name,
-      Phone: student.Phone,
-      Email: student.Email,
-      Present: totalDuration >= MINIMUM_DURATION,
-      JoinTime: firstJoin.join_time,
-      LeaveTime: lastLeave.leave_time,
-      Duration: totalDuration,
-    };
-  });
-
-  const absentStudents = attendance.filter(
-    (student) => !student.Present
-  );
-
-  const presentStudents = attendance.filter(
-    (student) => student.Present
-  );
-
-  return NextResponse.json({
-    summary: {
-      totalStudents: attendance.length,
-      present: presentStudents.length,
-      absent: absentStudents.length,
-      attendancePercentage:
-        (
-          (presentStudents.length / attendance.length) *
-          100
-        ).toFixed(1) + "%",
-    },
-
-    attendance,
-
-    absentStudents,
-
-    presentStudents,
-  });
+  }
 }
