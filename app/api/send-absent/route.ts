@@ -1,15 +1,30 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    // Get selected batch
-    const { searchParams } = new URL(request.url);
-    const batch = searchParams.get("batch") || "batch1";
+    // Security key
+    const key = request.nextUrl.searchParams.get("key");
 
-    // Automatically detect localhost or Netlify
-    const baseUrl = new URL(request.url).origin;
+    if (key !== process.env.AUTO_SEND_SECRET) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Unauthorized",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
 
-    // Get attendance for selected batch
+    // Selected batch
+    const batch =
+      request.nextUrl.searchParams.get("batch") || "batch1";
+
+    // Current site URL
+    const baseUrl = request.nextUrl.origin;
+
+    // Fetch attendance
     const attendanceResponse = await fetch(
       `${baseUrl}/api/attendance?batch=${batch}`,
       {
@@ -22,7 +37,6 @@ export async function POST(request: Request) {
     }
 
     const attendanceData = await attendanceResponse.json();
-
     const absentStudents = attendanceData.absentStudents || [];
 
     let sent = 0;
@@ -55,6 +69,7 @@ export async function POST(request: Request) {
       totalAbsent: absentStudents.length,
       sent,
       message: `${sent} WhatsApp message(s) sent successfully.`,
+      time: new Date().toLocaleString("en-IN"),
     });
   } catch (error) {
     console.error(error);

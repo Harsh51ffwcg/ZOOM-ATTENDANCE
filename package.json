@@ -9,8 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "csv-parse": "^7.0.1",
     "csv-parser": "^3.2.1",
     "fs-extra": "^11.3.6",
+    "lucide-react": "^1.27.0",
     "next": "16.2.11",
     "react": "19.2.4",
     "react-dom": "19.2.4",

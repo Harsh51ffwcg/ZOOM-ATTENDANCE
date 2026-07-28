@@ -4,6 +4,33 @@ import path from "path";
 import csv from "csv-parser";
 import { batches } from "@/lib/batches";
 
+type OfflineAttendance = {
+  StudentID: string;
+  Name: string;
+  Phone: string;
+  Time: string;
+  Mode: "Offline";
+};
+
+function readOfflineAttendance(batch: string): OfflineAttendance[] {
+  try {
+    const file = path.join(
+      process.cwd(),
+      "attendance",
+      `${batch}-offline.json`
+    );
+
+    if (!fs.existsSync(file)) {
+      return [];
+    }
+
+    return JSON.parse(
+      fs.readFileSync(file, "utf8")
+    );
+  } catch {
+    return [];
+  }
+}
 const MINIMUM_DURATION = 5 * 60; // 5 Minutes
 const MEETING_ID = "84458417524";
 
@@ -76,6 +103,8 @@ export async function GET(request: Request) {
     }
 
     const students = await readStudents(batch);
+const offlineAttendance =
+  readOfflineAttendance(batch);
 
     const token = await getAccessToken();
 
@@ -92,27 +121,43 @@ export async function GET(request: Request) {
 
     const participants = zoomData.participants || [];
 
-    const attendance = students.map((student: any) => {
-      const matches = participants.filter(
-        (participant: any) =>
-          participant.name
-            ?.trim()
-            .toLowerCase() ===
-          student.Name.trim().toLowerCase()
-      );
+   const attendance = students.map((student: any) => {
 
-      if (matches.length === 0) {
-        return {
-          StudentID: student.StudentID,
-          Name: student.Name,
-          Phone: student.Phone,
-          Email: student.Email,
-          Present: false,
-          JoinTime: null,
-          LeaveTime: null,
-          Duration: 0,
-        };
-      }
+  const offlineStudent = offlineAttendance.find(
+    (offline) =>
+      offline.StudentID === student.StudentID
+  );
+
+  const matches = participants.filter(
+    (participant: any) =>
+      participant.name
+        ?.trim()
+        .toLowerCase() ===
+      student.Name.trim().toLowerCase()
+  );
+
+  if (matches.length === 0) {
+  return {
+    StudentID: student.StudentID,
+    Name: student.Name,
+    Phone: student.Phone,
+    Email: student.Email,
+
+    Present: !!offlineStudent,
+
+    Mode: offlineStudent
+      ? "Offline"
+      : "Absent",
+
+    JoinTime: offlineStudent
+      ? offlineStudent.Time
+      : null,
+
+    LeaveTime: null,
+
+    Duration: 0,
+  };
+}
 
       const totalDuration = matches.reduce(
         (sum: number, current: any) =>
