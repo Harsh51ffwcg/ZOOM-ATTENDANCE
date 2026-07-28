@@ -37,9 +37,21 @@ export async function GET(request: NextRequest) {
     }
 
     const attendanceData = await attendanceResponse.json();
-    const absentStudents = attendanceData.absentStudents || [];
+const absentStudents = attendanceData.absentStudents || [];
 
-    let sent = 0;
+// Save today's attendance to Google Sheets
+const saveResponse = await fetch(
+  `${baseUrl}/api/save-attendance?batch=${batch}`,
+  {
+    cache: "no-store",
+  }
+);
+
+if (!saveResponse.ok) {
+  console.error("Failed to save attendance to Google Sheets.");
+}
+
+let sent = 0;
 
     for (const student of absentStudents) {
   const whatsappResponse = await fetch(
