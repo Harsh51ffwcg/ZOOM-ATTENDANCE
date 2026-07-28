@@ -42,35 +42,42 @@ export async function GET(request: NextRequest) {
     let sent = 0;
 
     for (const student of absentStudents) {
-      const whatsappResponse = await fetch(
-        `${baseUrl}/api/send-whatsapp`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            phone: student.Phone,
-            name: student.Name,
-          }),
-        }
-      );
-
-      if (whatsappResponse.ok) {
-        sent++;
-      } else {
-        console.log(`Failed to send to ${student.Name}`);
-      }
+  const whatsappResponse = await fetch(
+    `${baseUrl}/api/send-whatsapp`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        phone: student.Phone,
+        name: student.Name,
+      }),
     }
+  );
 
-    return NextResponse.json({
-      success: true,
-      batch,
-      totalAbsent: absentStudents.length,
-      sent,
-      message: `${sent} WhatsApp message(s) sent successfully.`,
-      time: new Date().toLocaleString("en-IN"),
-    });
+  const result = await whatsappResponse.json();
+
+  console.log("================================");
+  console.log("Student:", student.Name);
+  console.log("Phone:", student.Phone);
+  console.log("Status:", whatsappResponse.status);
+  console.log(JSON.stringify(result, null, 2));
+  console.log("================================");
+
+  if (whatsappResponse.ok) {
+    sent++;
+  }
+} // <-- ADD THIS BRACE
+
+return NextResponse.json({
+  success: true,
+  batch,
+  totalAbsent: absentStudents.length,
+  sent,
+  message: `${sent} WhatsApp message(s) sent successfully.`,
+  time: new Date().toLocaleString("en-IN"),
+});
   } catch (error) {
     console.error(error);
 
