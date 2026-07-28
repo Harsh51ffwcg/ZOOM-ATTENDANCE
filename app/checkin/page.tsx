@@ -1,9 +1,9 @@
 "use client";
 
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
 
-export default function CheckInPage() {
+function CheckInContent() {
   const searchParams = useSearchParams();
   const batch = searchParams.get("batch");
 
@@ -38,9 +38,7 @@ export default function CheckInPage() {
 
   return (
     <main className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
-
       <div className="bg-white rounded-xl shadow-xl p-8 w-full max-w-md">
-
         <h1 className="text-3xl font-bold text-center mb-2">
           Aarogyam Attendance
         </h1>
@@ -70,9 +68,15 @@ export default function CheckInPage() {
             {message}
           </div>
         )}
-
       </div>
-
     </main>
+  );
+}
+
+export default function CheckInPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center">Loading...</div>}>
+      <CheckInContent />
+    </Suspense>
   );
 }
