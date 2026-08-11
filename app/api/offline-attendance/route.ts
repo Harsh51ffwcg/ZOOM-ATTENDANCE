@@ -95,16 +95,16 @@ const attendanceFile = path.join(
     });
 
     fs.writeFileSync(
-      attendanceFile,
-      JSON.stringify(attendance, null, 2)
-    );
+  attendanceFile,
+  JSON.stringify(attendance, null, 2)
+);
 
-    return NextResponse.json({
-      success: true,
-      message: `✅ Welcome ${student.Name}! Attendance marked successfully.`,
-    });
+return NextResponse.json({
+  success: true,
+  message: `✅ Welcome ${student.Name}! Attendance marked successfully.`,
+});
 
-  catch (error: any) {
+} catch (error: any) {
   console.error("OFFLINE ATTENDANCE ERROR:", error);
 
   return NextResponse.json(
@@ -113,6 +113,11 @@ const attendanceFile = path.join(
       message: error?.message || "Server Error",
     },
     {
+      status: 500,
+    }
+  );
+}
+}
       status: 500,
     }
   );
