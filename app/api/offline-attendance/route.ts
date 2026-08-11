@@ -117,4 +117,3 @@ const attendanceFile = path.join(
     }
   );
 }
-}
