@@ -2,7 +2,19 @@ import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const { phone } = await request.json();
+    const { phone, name } = await request.json();
+
+    if (!phone || !name) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Phone number and name are required.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
     const response = await fetch(
       `https://graph.facebook.com/v25.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
@@ -17,39 +29,53 @@ export async function POST(request: Request) {
           to: phone,
           type: "template",
           template: {
-            name: "hello_world",
+            name: "attendance_absent",
             language: {
               code: "en_US",
             },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  {
+                    type: "text",
+                    parameter_name: "student_name",
+                    text: name,
+                  },
+                ],
+              },
+            ],
           },
         }),
       }
     );
 
-  const data = await response.json();
+    const data = await response.json();
 
-console.log("========== META RESPONSE ==========");
-console.log("Meta Status:", response.status);
-console.log("Meta Response:", JSON.stringify(data, null, 2));
-console.log("==================================");
+    console.log("========== META RESPONSE ==========");
+    console.log("Student:", name);
+    console.log("Phone:", phone);
+    console.log("Meta Status:", response.status);
+    console.log("Meta Response:", JSON.stringify(data, null, 2));
+    console.log("===================================");
 
-return NextResponse.json(
-  {
-    success: response.ok,
-    status: response.status,
-    data,
-  },
-  {
-    status: response.status,
-  }
-);
+    return NextResponse.json(
+      {
+        success: response.ok,
+        status: response.status,
+        data,
+      },
+      {
+        status: response.status,
+      }
+    );
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
         success: false,
-        error,
+        error: "Failed to send WhatsApp message.",
       },
       {
         status: 500,

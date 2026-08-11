@@ -59,10 +59,12 @@ if (formattedPhone.length === 10) {
       fs.mkdirSync(attendanceDir);
     }
 
-    const attendanceFile = path.join(
-      attendanceDir,
-      `${batch}-offline.json`
-    );
+    const today = new Date().toISOString().split("T")[0];
+
+const attendanceFile = path.join(
+  attendanceDir,
+  `${batch}-${today}-offline.json`
+);
 
     let attendance: any[] = [];
 

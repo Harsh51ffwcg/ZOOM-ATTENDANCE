@@ -39,21 +39,25 @@ function CheckInContent() {
   return (
     <main className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
       <div className="bg-white rounded-xl shadow-xl p-8 w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-2">
-          Aarogyam Attendance
-        </h1>
+        <h1 className="text-3xl font-bold text-gray-900 text-center mb-2">
+  Aarogyam Attendance
+</h1>
 
         <p className="text-center text-gray-600 mb-6">
           Batch: <b>{batch}</b>
         </p>
 
-        <input
-          type="text"
-          placeholder="Enter Phone Number"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          className="w-full border rounded-lg p-3 mb-4"
-        />
+        <label className="block text-gray-900 font-medium mb-2">
+  Enter Your Phone Number
+</label>
+
+<input
+  type="text"
+  placeholder="9876543210"
+  value={phone}
+  onChange={(e) => setPhone(e.target.value)}
+  className="w-full border rounded-lg p-3 mb-4 text-gray-900 placeholder:text-gray-400"
+/>
 
         <button
           onClick={markAttendance}

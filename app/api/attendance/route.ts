@@ -14,12 +14,13 @@ type OfflineAttendance = {
 
 function readOfflineAttendance(batch: string): OfflineAttendance[] {
   try {
-    const file = path.join(
-      process.cwd(),
-      "attendance",
-      `${batch}-offline.json`
-    );
+    const today = new Date().toISOString().split("T")[0];
 
+const file = path.join(
+  process.cwd(),
+  "attendance",
+  `${batch}-${today}-offline.json`
+);
     if (!fs.existsSync(file)) {
       return [];
     }
@@ -120,6 +121,11 @@ const offlineAttendance =
     const zoomData = await response.json();
 
     const participants = zoomData.participants || [];
+    const today = new Date().toISOString().split("T")[0];
+
+const todaysParticipants = participants.filter((participant: any) =>
+  participant.join_time?.startsWith(today)
+);
 
    const attendance = students.map((student: any) => {
 
@@ -128,7 +134,7 @@ const offlineAttendance =
       offline.StudentID === student.StudentID
   );
 
-  const matches = participants.filter(
+  const matches = todaysParticipants.filter(
     (participant: any) =>
       participant.name
         ?.trim()
