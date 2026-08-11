@@ -5,42 +5,42 @@ import { parse } from "csv-parse/sync";
 
 export async function POST(req: NextRequest) {
   try {
-   const { batch, phone } = await req.json();
+    const { batch, phone } = await req.json();
 
-if (!batch || !phone) {
-  return NextResponse.json({
-    success: false,
-    message: "Missing batch or phone number",
-  });
-}
+    if (!batch || !phone) {
+      return NextResponse.json({
+        success: false,
+        message: "Missing batch or phone number",
+      });
+    }
 
-// Remove spaces and special characters
-let formattedPhone = String(phone).replace(/\D/g, "");
+    // Remove spaces and special characters
+    let formattedPhone = String(phone).replace(/\D/g, "");
 
-// If user entered only 10 digits, add India's country code
-if (formattedPhone.length === 10) {
-  formattedPhone = "91" + formattedPhone;
-}
+    // If user entered only 10 digits, add India's country code
+    if (formattedPhone.length === 10) {
+      formattedPhone = "91" + formattedPhone;
+    }
 
     // Read the correct batch CSV
     const csvPath = path.join(
-  process.cwd(),
-  "students",
-  `${batch}.csv`
-);
+      process.cwd(),
+      "students",
+      `${batch}.csv`
+    );
 
     const csvContent = fs.readFileSync(csvPath, "utf8");
 
     const students: any[] = parse(csvContent, {
-  columns: true,
-  skip_empty_lines: true,
-});
+      columns: true,
+      skip_empty_lines: true,
+    });
 
     // Find student
-   const student = students.find(
-  (s: any) =>
-    String(s.Phone).replace(/\D/g, "") === formattedPhone
-);
+    const student = students.find(
+      (s: any) =>
+        String(s.Phone).replace(/\D/g, "") === formattedPhone
+    );
 
     if (!student) {
       return NextResponse.json({
@@ -61,10 +61,10 @@ if (formattedPhone.length === 10) {
 
     const today = new Date().toISOString().split("T")[0];
 
-const attendanceFile = path.join(
-  attendanceDir,
-  `${batch}-${today}-offline.json`
-);
+    const attendanceFile = path.join(
+      attendanceDir,
+      `${batch}-${today}-offline.json`
+    );
 
     let attendance: any[] = [];
 
@@ -95,30 +95,26 @@ const attendanceFile = path.join(
     });
 
     fs.writeFileSync(
-  attendanceFile,
-  JSON.stringify(attendance, null, 2)
-);
+      attendanceFile,
+      JSON.stringify(attendance, null, 2)
+    );
 
-return NextResponse.json({
-  success: true,
-  message: `✅ Welcome ${student.Name}! Attendance marked successfully.`,
-});
+    return NextResponse.json({
+      success: true,
+      message: `✅ Welcome ${student.Name}! Attendance marked successfully.`,
+    });
 
-} catch (error: any) {
-  console.error("OFFLINE ATTENDANCE ERROR:", error);
+  } catch (error: any) {
+    console.error("OFFLINE ATTENDANCE ERROR:", error);
 
-  return NextResponse.json(
-    {
-      success: false,
-      message: error?.message || "Server Error",
-    },
-    {
-      status: 500,
-    }
-  );
-}
-}
-      status: 500,
-    }
-  );
+    return NextResponse.json(
+      {
+        success: false,
+        message: error?.message || "Server Error",
+      },
+      {
+        status: 500,
+      }
+    );
+  }
 }
