@@ -104,12 +104,17 @@ const attendanceFile = path.join(
       message: `✅ Welcome ${student.Name}! Attendance marked successfully.`,
     });
 
-  } catch (error) {
-    console.error(error);
+  catch (error: any) {
+  console.error("OFFLINE ATTENDANCE ERROR:", error);
 
-    return NextResponse.json({
+  return NextResponse.json(
+    {
       success: false,
-      message: "Server Error",
-    });
-  }
+      message: error?.message || "Server Error",
+    },
+    {
+      status: 500,
+    }
+  );
+}
 }
