@@ -73,7 +73,9 @@ export async function GET(request: NextRequest) {
     );
 
     if (!attendanceResponse.ok) {
-      throw new Error("Unable to fetch attendance.");
+      throw new Error(
+        `Unable to fetch attendance. Status: ${attendanceResponse.status}`
+      );
     }
 
     const attendanceData =
@@ -96,7 +98,7 @@ export async function GET(request: NextRequest) {
 
     if (!saveResponse.ok) {
       console.error(
-        "⚠️ Failed to save attendance to Google Sheets."
+        `⚠️ Failed to save attendance to Google Sheets. Status: ${saveResponse.status}`
       );
     }
 
@@ -157,7 +159,8 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: sent > 0 || absentStudents.length === 0,
+      success:
+        sent > 0 || absentStudents.length === 0,
       batch,
       alreadySent: false,
       totalAbsent: absentStudents.length,
@@ -168,7 +171,7 @@ export async function GET(request: NextRequest) {
           : `${sent} WhatsApp message(s) sent successfully.`,
       time: new Date().toLocaleString("en-IN"),
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       "WhatsApp automation error:",
       error
@@ -178,7 +181,9 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         message:
-          "Failed to process WhatsApp attendance.",
+          error?.message ||
+          "Unknown server error",
+        error: String(error),
       },
       {
         status: 500,
