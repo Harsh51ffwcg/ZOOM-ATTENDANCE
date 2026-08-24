@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     // Security key
     const key = request.nextUrl.searchParams.get("key");
 
-    if (key !== process.env.AUTO_SEND_SECRET) {
+    if (key !== process.env.ATTENDANCE_KEY) {
       return NextResponse.json(
         {
           success: false,

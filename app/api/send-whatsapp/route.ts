@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const cleanPhone = String(phone).replace(/\D/g, "");
 
    const message =
-  `🙏 We missed you in today’s MAHAYOG Class.\n\n` +
+  `We missed you in today’s MAHAYOG Class.\n\n` +
   `Consistency is the key to progress in your Sadhana.\n` +
   `Do join us in the next session and keep your practice going. 🙏\n\n` +
   `Regards,\n` +
