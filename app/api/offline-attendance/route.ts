@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { parse } from "csv-parse/sync";
+import { appendOfflineAttendance } from "@/lib/googleSheets";
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,7 +23,6 @@ export async function POST(req: NextRequest) {
       formattedPhone = "91" + formattedPhone;
     }
 
-    // Read the correct batch CSV
     const csvPath = path.join(
       process.cwd(),
       "students",
@@ -49,61 +49,24 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Create attendance folder if needed
-    const attendanceDir = path.join(
-      process.cwd(),
-      "attendance"
-    );
-
-    if (!fs.existsSync(attendanceDir)) {
-      fs.mkdirSync(attendanceDir);
-    }
-
     const today = new Date().toISOString().split("T")[0];
+    const time = new Date().toISOString();
 
-    const attendanceFile = path.join(
-      attendanceDir,
-      `${batch}-${today}-offline.json`
-    );
-
-    let attendance: any[] = [];
-
-    if (fs.existsSync(attendanceFile)) {
-      attendance = JSON.parse(
-        fs.readFileSync(attendanceFile, "utf8")
-      );
-    }
-
-    // Prevent duplicate check-ins
-    const alreadyPresent = attendance.find(
-      (s) => s.StudentID === student.StudentID
-    );
-
-    if (alreadyPresent) {
-      return NextResponse.json({
-        success: false,
-        message: "⚠️ Attendance already marked.",
-      });
-    }
-
-    attendance.push({
-      StudentID: student.StudentID,
-      Name: student.Name,
-      Phone: student.Phone,
-      Time: new Date().toISOString(),
-      Mode: "Offline",
-    });
-
-    fs.writeFileSync(
-      attendanceFile,
-      JSON.stringify(attendance, null, 2)
-    );
+    // Save offline attendance to Google Sheets
+    await appendOfflineAttendance([
+      today,
+      batch,
+      student.StudentID,
+      student.Name,
+      student.Phone,
+      time,
+      "Offline",
+    ]);
 
     return NextResponse.json({
       success: true,
       message: `✅ Welcome ${student.Name}! Attendance marked successfully.`,
     });
-
   } catch (error: any) {
     console.error("OFFLINE ATTENDANCE ERROR:", error);
 

@@ -16,48 +16,47 @@ export async function POST(request: Request) {
       );
     }
 
+    // WhatsApp Baileys service running on the old PC
+    const whatsappServiceUrl =
+      process.env.WHATSAPP_SERVICE_URL ||
+      "http://192.168.1.6:3001";
+
+    const cleanPhone = String(phone).replace(/\D/g, "");
+
+   const message =
+  `🙏 We missed you in today’s MAHAYOG Class.\n\n` +
+  `Consistency is the key to progress in your Sadhana.\n` +
+  `Do join us in the next session and keep your practice going. 🙏\n\n` +
+  `Regards,\n` +
+  `Aarogyam`;
+
     const response = await fetch(
-      `https://graph.facebook.com/v25.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      `${whatsappServiceUrl}/send`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: phone,
-          type: "template",
-          template: {
-            name: "attendance_absent",
-            language: {
-              code: "en_US",
-            },
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  {
-                    type: "text",
-                    parameter_name: "student_name",
-                    text: name,
-                  },
-                ],
-              },
-            ],
-          },
+          phone: cleanPhone,
+          message: message,
         }),
+        cache: "no-store",
       }
     );
 
     const data = await response.json();
 
-    console.log("========== META RESPONSE ==========");
+    console.log("========== BAILEYS RESPONSE ==========");
     console.log("Student:", name);
-    console.log("Phone:", phone);
-    console.log("Meta Status:", response.status);
-    console.log("Meta Response:", JSON.stringify(data, null, 2));
-    console.log("===================================");
+    console.log("Phone:", cleanPhone);
+    console.log("Baileys URL:", whatsappServiceUrl);
+    console.log("Baileys Status:", response.status);
+    console.log(
+      "Baileys Response:",
+      JSON.stringify(data, null, 2)
+    );
+    console.log("======================================");
 
     return NextResponse.json(
       {
@@ -70,7 +69,7 @@ export async function POST(request: Request) {
       }
     );
   } catch (error) {
-    console.error(error);
+    console.error("WhatsApp sending error:", error);
 
     return NextResponse.json(
       {
