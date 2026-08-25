@@ -5,6 +5,9 @@ import csv from "csv-parser";
 import { batches } from "@/lib/batches";
 import { getOfflineAttendance } from "@/lib/googleSheets";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type OfflineAttendance = {
   StudentID: string;
   Name: string;
@@ -136,7 +139,7 @@ export async function GET(request: Request) {
 
     const students = await readStudents(batch);
 
-    // Read today's offline attendance from Google Sheets
+    // Read today's offline attendance
     const offlineAttendance =
       await readOfflineAttendance(batch);
 
@@ -148,6 +151,7 @@ export async function GET(request: Request) {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        cache: "no-store",
       }
     );
 
@@ -289,6 +293,59 @@ export async function GET(request: Request) {
         (student) => !student.Present
       );
 
+    // ================================
+    // DEBUG: FINAL ATTENDANCE CHECK
+    // ================================
+
+    console.log(
+      "========================================"
+    );
+
+    console.log(
+      "ATTENDANCE CHECK - BATCH:",
+      batch
+    );
+
+    console.log(
+      "ALL STUDENTS:"
+    );
+
+    console.log(
+      attendance.map((student) => ({
+        name: student.Name,
+        phone: student.Phone,
+        present: student.Present,
+        mode: student.Mode,
+        duration: student.Duration,
+      }))
+    );
+
+    console.log(
+      "ABSENT STUDENTS - WILL BE SENT WHATSAPP:"
+    );
+
+    console.log(
+      absentStudents.map((student) => ({
+        name: student.Name,
+        phone: student.Phone,
+      }))
+    );
+
+    console.log(
+      "PRESENT STUDENTS - MUST NOT RECEIVE WHATSAPP:"
+    );
+
+    console.log(
+      presentStudents.map((student) => ({
+        name: student.Name,
+        phone: student.Phone,
+      }))
+    );
+
+    console.log(
+      "========================================"
+    );
+
     return NextResponse.json({
       batch,
 
@@ -319,7 +376,10 @@ export async function GET(request: Request) {
       absentStudents,
     });
   } catch (error: any) {
-    console.error(error);
+    console.error(
+      "ATTENDANCE ERROR:",
+      error
+    );
 
     return NextResponse.json(
       {
