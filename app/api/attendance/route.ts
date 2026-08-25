@@ -179,13 +179,38 @@ export async function GET(request: Request) {
               String(student.StudentID)
           );
 
+        // Get the student's first name from the CSV
+        const studentFirstName =
+          String(student.Name || "")
+            .trim()
+            .split(/\s+/)[0]
+            .toLowerCase();
+
+        // Match Zoom participants by first name.
+        // Also supports names such as:
+        // "Pooja's iPhone"
+        // "Pooja's iPad"
+        // "Pooja Gupta"
+        // "Pooja"
         const matches =
           todaysParticipants.filter(
-            (participant: any) =>
-              participant.name
-                ?.trim()
-                .toLowerCase() ===
-              student.Name.trim().toLowerCase()
+            (participant: any) => {
+              const zoomName = String(
+                participant.name || ""
+              )
+                .trim()
+                .toLowerCase();
+
+              const zoomFirstName =
+                zoomName
+                  .split(/\s+/)[0]
+                  .replace(/['’]s$/, "");
+
+              return (
+                zoomFirstName ===
+                studentFirstName
+              );
+            }
           );
 
         // No online attendance
