@@ -84,6 +84,19 @@ export async function GET(request: NextRequest) {
     const absentStudents =
       attendanceData.absentStudents || [];
 
+console.log("================================");
+console.log("WHATSAPP AUTOMATION FILTER");
+console.log("Batch:", batch);
+console.log("Students received as ABSENT:");
+
+console.log(
+  absentStudents.map((student: any) => ({
+    name: student.Name,
+    phone: student.Phone,
+  }))
+);
+
+console.log("================================");
     console.log(
       `🔴 ${absentStudents.length} absent student(s) found.`
     );
