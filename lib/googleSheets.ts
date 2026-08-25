@@ -1,21 +1,9 @@
 import { google } from "googleapis";
 
-console.log("GOOGLE KEY CHECK:", {
-  exists: !!process.env.GOOGLE_PRIVATE_KEY,
-  startsCorrectly: process.env.GOOGLE_PRIVATE_KEY?.startsWith(
-    "-----BEGIN PRIVATE KEY-----"
-  ),
-  endsCorrectly: process.env.GOOGLE_PRIVATE_KEY?.includes(
-    "-----END PRIVATE KEY-----"
-  ),
-  hasLiteralSlashN: process.env.GOOGLE_PRIVATE_KEY?.includes("\\n"),
-  length: process.env.GOOGLE_PRIVATE_KEY?.length,
-});
-
 const privateKey = process.env.GOOGLE_PRIVATE_KEY
-  ?.trim()
+  ?.replace(/\\n/g, "\n")
   .replace(/^["']|["']$/g, "")
-  .replace(/\\n/g, "\n");
+  .trim();
 
 const auth = new google.auth.GoogleAuth({
   credentials: {
