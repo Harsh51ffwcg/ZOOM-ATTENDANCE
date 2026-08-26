@@ -1,11 +1,11 @@
 import { getStore } from "@netlify/blobs";
 
-const store = getStore("whatsapp-sends");
-
 export async function claimWhatsAppSend(
   batch: string,
   date: string
 ): Promise<boolean> {
+  const store = getStore("whatsapp-sends");
+
   const key = `${date}-${batch}`;
 
   const result = await store.set(
