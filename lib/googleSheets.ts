@@ -17,22 +17,56 @@ const auth = new google.auth.GoogleAuth({
 });
 
 const spreadsheetId = process.env.GOOGLE_SHEET_ID!;
-const offlineSpreadsheetId =
-  process.env.GOOGLE_OFFLINE_SHEET_ID!;
 
-export async function appendAttendance(
-  rows: (string | number)[][]
-) {
+// --------------------------------------------------
+// GOOGLE SHEETS CLIENT
+// --------------------------------------------------
+
+async function getSheets() {
   const client = await auth.getClient();
 
-  const sheets = google.sheets({
+  return google.sheets({
     version: "v4",
     auth: client as any,
   });
+}
+
+// --------------------------------------------------
+// GET BATCH SHEET NAME
+// --------------------------------------------------
+
+function getBatchSheetName(batch: string) {
+  const normalized = batch.toLowerCase();
+
+  const allowedBatches = [
+    "batch1",
+    "batch2",
+    "batch3",
+    "batch4",
+  ];
+
+  if (!allowedBatches.includes(normalized)) {
+    throw new Error(`Invalid batch: ${batch}`);
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+// --------------------------------------------------
+// ONLINE + OFFLINE ATTENDANCE
+// --------------------------------------------------
+
+export async function appendAttendance(
+  rows: (string | number)[][],
+  batch: string
+) {
+  const sheets = await getSheets();
+
+  const sheetName = getBatchSheetName(batch);
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: "Sheet1!A:J",
+    range: `${sheetName}!A:K`,
     valueInputOption: "RAW",
     requestBody: {
       values: rows,
@@ -40,19 +74,21 @@ export async function appendAttendance(
   });
 }
 
-export async function appendOfflineAttendance(
-  row: (string | number)[]
-) {
-  const client = await auth.getClient();
+// --------------------------------------------------
+// OFFLINE ATTENDANCE
+// --------------------------------------------------
 
-  const sheets = google.sheets({
-    version: "v4",
-    auth: client as any,
-  });
+export async function appendOfflineAttendance(
+  row: (string | number)[],
+  batch: string
+) {
+  const sheets = await getSheets();
+
+  const sheetName = getBatchSheetName(batch);
 
   await sheets.spreadsheets.values.append({
-    spreadsheetId: offlineSpreadsheetId,
-    range: "Offline!A:G",
+    spreadsheetId,
+    range: `${sheetName}!A:K`,
     valueInputOption: "RAW",
     requestBody: {
       values: [row],
@@ -60,33 +96,61 @@ export async function appendOfflineAttendance(
   });
 }
 
+// --------------------------------------------------
+// GET OFFLINE ATTENDANCE
+//
+// Reads the new Batch1-4 tabs.
+// This is used by the attendance API to recognise
+// students who checked in offline.
+// --------------------------------------------------
+
 export async function getOfflineAttendance() {
-  const client = await auth.getClient();
+  const sheets = await getSheets();
 
-  const sheets = google.sheets({
-    version: "v4",
-    auth: client as any,
-  });
+  const batches = [
+    "Batch1",
+    "Batch2",
+    "Batch3",
+    "Batch4",
+  ];
 
-  const response =
-    await sheets.spreadsheets.values.get({
-      spreadsheetId: offlineSpreadsheetId,
-      range: "Offline!A:G",
-    });
+  const allRows: any[][] = [];
 
-  return response.data.values || [];
+  for (const sheetName of batches) {
+    try {
+      const response =
+        await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: `${sheetName}!A:K`,
+        });
+
+      const rows = response.data.values || [];
+
+      if (rows.length > 1) {
+        allRows.push(...rows.slice(1));
+      }
+    } catch (error) {
+      console.error(
+        `Failed to read ${sheetName}:`,
+        error
+      );
+    }
+  }
+
+  return allRows;
 }
+
+// --------------------------------------------------
+// WHATSAPP LOG
+//
+// DO NOT CHANGE THIS STRUCTURE.
+// --------------------------------------------------
 
 export async function hasWhatsAppBeenSent(
   batch: string,
   date: string
 ) {
-  const client = await auth.getClient();
-
-  const sheets = google.sheets({
-    version: "v4",
-    auth: client as any,
-  });
+  const sheets = await getSheets();
 
   const response =
     await sheets.spreadsheets.values.get({
@@ -110,12 +174,7 @@ export async function markWhatsAppSent(
   totalAbsent: number,
   totalSent: number
 ) {
-  const client = await auth.getClient();
-
-  const sheets = google.sheets({
-    version: "v4",
-    auth: client as any,
-  });
+  const sheets = await getSheets();
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,

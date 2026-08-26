@@ -3,6 +3,7 @@ import {
   hasWhatsAppBeenSent,
   markWhatsAppSent,
 } from "@/lib/googleSheets";
+import { claimWhatsAppSend } from "@/lib/whatsappLock";
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,7 +40,11 @@ export async function GET(request: NextRequest) {
     console.log("Date:", today);
     console.log("================================");
 
-    // Check if this batch has already sent messages today
+    // --------------------------------------------------
+    // FIRST CHECK:
+    // Has this batch already completed WhatsApp sending?
+    // --------------------------------------------------
+
     const alreadySent = await hasWhatsAppBeenSent(
       batch,
       today
@@ -61,10 +66,46 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // --------------------------------------------------
+    // ATOMIC LOCK:
+    // Only ONE request can claim this batch/day.
+    // This prevents duplicate WhatsApp messages when
+    // multiple Netlify executions happen simultaneously.
+    // --------------------------------------------------
+
+    const claimed = await claimWhatsAppSend(
+      batch,
+      today
+    );
+
+    if (!claimed) {
+      console.log(
+        `🚫 Another request is already processing ${batch} for ${today}.`
+      );
+
+      return NextResponse.json({
+        success: true,
+        batch,
+        alreadySent: true,
+        totalAbsent: 0,
+        sent: 0,
+        message:
+          `WhatsApp automation for ${batch} is already running or has already run today.`,
+        time: new Date().toLocaleString("en-IN"),
+      });
+    }
+
+    console.log(
+      `🔒 WhatsApp send lock claimed successfully for ${batch} on ${today}.`
+    );
+
     // Current site URL
     const baseUrl = request.nextUrl.origin;
 
-    // Fetch attendance
+    // --------------------------------------------------
+    // FETCH ATTENDANCE
+    // --------------------------------------------------
+
     const attendanceResponse = await fetch(
       `${baseUrl}/api/attendance?batch=${batch}`,
       {
@@ -84,24 +125,32 @@ export async function GET(request: NextRequest) {
     const absentStudents =
       attendanceData.absentStudents || [];
 
-console.log("================================");
-console.log("WHATSAPP AUTOMATION FILTER");
-console.log("Batch:", batch);
-console.log("Students received as ABSENT:");
+    // --------------------------------------------------
+    // LOG ABSENT STUDENTS
+    // --------------------------------------------------
 
-console.log(
-  absentStudents.map((student: any) => ({
-    name: student.Name,
-    phone: student.Phone,
-  }))
-);
+    console.log("================================");
+    console.log("WHATSAPP AUTOMATION FILTER");
+    console.log("Batch:", batch);
+    console.log("Students received as ABSENT:");
 
-console.log("================================");
+    console.log(
+      absentStudents.map((student: any) => ({
+        name: student.Name,
+        phone: student.Phone,
+      }))
+    );
+
+    console.log("================================");
+
     console.log(
       `🔴 ${absentStudents.length} absent student(s) found.`
     );
 
-    // Save today's attendance to Google Sheets
+    // --------------------------------------------------
+    // SAVE TODAY'S ATTENDANCE TO GOOGLE SHEETS
+    // --------------------------------------------------
+
     const saveResponse = await fetch(
       `${baseUrl}/api/save-attendance?batch=${batch}`,
       {
@@ -115,9 +164,12 @@ console.log("================================");
       );
     }
 
+    // --------------------------------------------------
+    // SEND WHATSAPP MESSAGES
+    // --------------------------------------------------
+
     let sent = 0;
 
-    // Send WhatsApp messages only to absent students
     for (const student of absentStudents) {
       try {
         const whatsappResponse = await fetch(
@@ -161,7 +213,10 @@ console.log("================================");
       }
     }
 
-    // Record the result
+    // --------------------------------------------------
+    // RECORD RESULT IN WHATSAPP LOG
+    // --------------------------------------------------
+
     if (sent > 0) {
       await markWhatsAppSent(
         today,
@@ -170,6 +225,10 @@ console.log("================================");
         sent
       );
     }
+
+    // --------------------------------------------------
+    // FINAL RESPONSE
+    // --------------------------------------------------
 
     return NextResponse.json({
       success:

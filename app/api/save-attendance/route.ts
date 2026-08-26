@@ -29,17 +29,21 @@ export async function GET(request: NextRequest) {
       student.StudentID,
       student.Name,
       student.Phone,
-      student.Email,
+      student.Email || "",
       student.Present ? "Present" : "Absent",
       student.JoinTime || "",
       student.LeaveTime || "",
-      student.Duration,
+      student.Duration || 0,
+      student.Mode || (
+        student.Present ? "Online" : "Absent"
+      ),
     ]);
 
-    await appendAttendance(rows);
+    await appendAttendance(rows, batch);
 
     return NextResponse.json({
       success: true,
+      batch,
       saved: rows.length,
     });
   } catch (error: any) {
