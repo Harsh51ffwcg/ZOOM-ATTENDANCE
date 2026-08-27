@@ -17,6 +17,8 @@ const auth = new google.auth.GoogleAuth({
 });
 
 const spreadsheetId = process.env.GOOGLE_SHEET_ID!;
+const offlineSpreadsheetId =
+  process.env.GOOGLE_OFFLINE_SHEET_ID!;
 
 // --------------------------------------------------
 // GOOGLE SHEETS CLIENT
@@ -49,11 +51,15 @@ function getBatchSheetName(batch: string) {
     throw new Error(`Invalid batch: ${batch}`);
   }
 
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  return (
+    normalized.charAt(0).toUpperCase() +
+    normalized.slice(1)
+  );
 }
 
 // --------------------------------------------------
-// ONLINE + OFFLINE ATTENDANCE
+// FINAL ATTENDANCE
+// Main spreadsheet → Batch1/2/3/4
 // --------------------------------------------------
 
 export async function appendAttendance(
@@ -75,20 +81,42 @@ export async function appendAttendance(
 }
 
 // --------------------------------------------------
-// OFFLINE ATTENDANCE
+// TEMPORARY OFFLINE ATTENDANCE
+// Separate Offline spreadsheet
 // --------------------------------------------------
 
-export async function appendOfflineAttendance(
-  row: (string | number)[],
-  batch: string
+export async function hasOfflineAttendance(
+  date: string,
+  batch: string,
+  studentId: string
 ) {
   const sheets = await getSheets();
 
-  const sheetName = getBatchSheetName(batch);
+  const response =
+    await sheets.spreadsheets.values.get({
+      spreadsheetId: offlineSpreadsheetId,
+      range: "Offline!A:G",
+    });
+
+  const rows = response.data.values || [];
+
+  return rows.some(
+    (row) =>
+      String(row[0] || "") === date &&
+      String(row[1] || "").toLowerCase() ===
+        batch.toLowerCase() &&
+      String(row[2] || "") === String(studentId)
+  );
+}
+
+export async function appendOfflineAttendance(
+  row: (string | number)[]
+) {
+  const sheets = await getSheets();
 
   await sheets.spreadsheets.values.append({
-    spreadsheetId,
-    range: `${sheetName}!A:K`,
+    spreadsheetId: offlineSpreadsheetId,
+    range: "Offline!A:G",
     valueInputOption: "RAW",
     requestBody: {
       values: [row],
@@ -97,53 +125,30 @@ export async function appendOfflineAttendance(
 }
 
 // --------------------------------------------------
-// GET OFFLINE ATTENDANCE
-//
-// Reads the new Batch1-4 tabs.
-// This is used by the attendance API to recognise
-// students who checked in offline.
+// READ TEMPORARY OFFLINE ATTENDANCE
 // --------------------------------------------------
 
 export async function getOfflineAttendance() {
   const sheets = await getSheets();
 
-  const batches = [
-    "Batch1",
-    "Batch2",
-    "Batch3",
-    "Batch4",
-  ];
+  const response =
+    await sheets.spreadsheets.values.get({
+      spreadsheetId: offlineSpreadsheetId,
+      range: "Offline!A:G",
+    });
 
-  const allRows: any[][] = [];
+  const rows = response.data.values || [];
 
-  for (const sheetName of batches) {
-    try {
-      const response =
-        await sheets.spreadsheets.values.get({
-          spreadsheetId,
-          range: `${sheetName}!A:K`,
-        });
-
-      const rows = response.data.values || [];
-
-      if (rows.length > 1) {
-        allRows.push(...rows.slice(1));
-      }
-    } catch (error) {
-      console.error(
-        `Failed to read ${sheetName}:`,
-        error
-      );
-    }
+  if (rows.length <= 1) {
+    return [];
   }
 
-  return allRows;
+  return rows.slice(1);
 }
 
 // --------------------------------------------------
 // WHATSAPP LOG
-//
-// DO NOT CHANGE THIS STRUCTURE.
+// DO NOT CHANGE
 // --------------------------------------------------
 
 export async function hasWhatsAppBeenSent(

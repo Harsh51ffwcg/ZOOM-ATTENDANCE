@@ -16,6 +16,10 @@ type OfflineAttendance = {
   Mode: "Offline";
 };
 
+// --------------------------------------------------
+// INDIAN DATE
+// --------------------------------------------------
+
 function getIndianDate() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
@@ -25,12 +29,15 @@ function getIndianDate() {
   }).format(new Date());
 }
 
+// --------------------------------------------------
+// READ OFFLINE ATTENDANCE
+// FROM GOOGLE_OFFLINE_SHEET_ID
+// --------------------------------------------------
+
 async function readOfflineAttendance(
   batch: string
 ): Promise<OfflineAttendance[]> {
   try {
-    // Read offline attendance from the
-    // Batch1 / Batch2 / Batch3 / Batch4 tabs
     const rows = await getOfflineAttendance();
 
     if (!rows || rows.length === 0) {
@@ -43,19 +50,20 @@ async function readOfflineAttendance(
       .filter((row: any[]) => {
         const date = String(row[0] || "");
         const rowBatch = String(row[1] || "");
-        const mode = String(row[10] || "");
+        const mode = String(row[6] || "");
 
         return (
           date === today &&
-          rowBatch.toLowerCase() === batch.toLowerCase() &&
-          mode === "Offline"
+          rowBatch.toLowerCase() ===
+            batch.toLowerCase() &&
+          mode.toLowerCase() === "offline"
         );
       })
       .map((row: any[]) => ({
         StudentID: String(row[2] || ""),
         Name: String(row[3] || ""),
         Phone: String(row[4] || ""),
-        Time: String(row[7] || ""),
+        Time: String(row[5] || ""),
         Mode: "Offline" as const,
       }));
   } catch (error) {
@@ -68,9 +76,17 @@ async function readOfflineAttendance(
   }
 }
 
-const MINIMUM_DURATION = 5 * 60; // 5 Minutes
+// --------------------------------------------------
+// ATTENDANCE SETTINGS
+// --------------------------------------------------
+
+const MINIMUM_DURATION = 5 * 60;
 
 const MEETING_ID = "84458417524";
+
+// --------------------------------------------------
+// READ STUDENTS FROM CSV
+// --------------------------------------------------
 
 async function readStudents(batch: string) {
   const students: any[] = [];
@@ -95,6 +111,10 @@ async function readStudents(batch: string) {
       .on("error", reject);
   });
 }
+
+// --------------------------------------------------
+// GET ZOOM ACCESS TOKEN
+// --------------------------------------------------
 
 async function getAccessToken() {
   const accountId = process.env.ZOOM_ACCOUNT_ID!;
@@ -127,6 +147,10 @@ async function getAccessToken() {
   return data.access_token;
 }
 
+// --------------------------------------------------
+// MAIN ATTENDANCE API
+// --------------------------------------------------
+
 export async function GET(request: Request) {
   try {
     const { searchParams } =
@@ -156,13 +180,19 @@ export async function GET(request: Request) {
 
     // --------------------------------------------------
     // READ TODAY'S OFFLINE ATTENDANCE
+    // FROM OLD OFFLINE SHEET
     // --------------------------------------------------
 
     const offlineAttendance =
       await readOfflineAttendance(batch);
 
+    console.log(
+      "OFFLINE ATTENDANCE:",
+      offlineAttendance
+    );
+
     // --------------------------------------------------
-    // GET ZOOM ACCESS TOKEN
+    // GET ZOOM TOKEN
     // --------------------------------------------------
 
     const token = await getAccessToken();
@@ -187,31 +217,15 @@ export async function GET(request: Request) {
       zoomData.participants || [];
 
     // --------------------------------------------------
-    // TODAY'S DATE IN INDIA
+    // TODAY
     // --------------------------------------------------
 
     const today = getIndianDate();
 
     const todaysParticipants =
       participants.filter(
-        (participant: any) => {
-          if (!participant.join_time) {
-            return false;
-          }
-
-          // Convert Zoom join time to Indian date
-          const participantDate =
-            new Intl.DateTimeFormat("en-CA", {
-              timeZone: "Asia/Kolkata",
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-            }).format(
-              new Date(participant.join_time)
-            );
-
-          return participantDate === today;
-        }
+        (participant: any) =>
+          participant.join_time?.startsWith(today)
       );
 
     // --------------------------------------------------
@@ -220,7 +234,7 @@ export async function GET(request: Request) {
 
     const attendance = students.map(
       (student: any) => {
-        // Find offline attendance by Student ID
+        // Find offline check-in by Student ID
         const offlineStudent =
           offlineAttendance.find(
             (offline) =>
@@ -228,7 +242,7 @@ export async function GET(request: Request) {
               String(student.StudentID)
           );
 
-        // Student's first name
+        // Student first name from CSV
         const studentFirstName =
           String(student.Name || "")
             .trim()
@@ -236,16 +250,7 @@ export async function GET(request: Request) {
             .toLowerCase();
 
         // --------------------------------------------------
-        // MATCH ZOOM NAME BY FIRST NAME
-        //
-        // Examples:
-        //
-        // Pooja Gupta
-        // Pooja
-        // Pooja's iPhone
-        // Pooja's iPad
-        //
-        // All match student "Pooja Gupta"
+        // MATCH ZOOM PARTICIPANTS
         // --------------------------------------------------
 
         const matches =
@@ -278,7 +283,7 @@ export async function GET(request: Request) {
             StudentID: student.StudentID,
             Name: student.Name,
             Phone: student.Phone,
-            Email: student.Email || "",
+            Email: student.Email,
 
             Present: !!offlineStudent,
 
@@ -307,7 +312,7 @@ export async function GET(request: Request) {
               current: any
             ) =>
               sum +
-              Number(current.duration || 0),
+              (current.duration || 0),
             0
           );
 
@@ -352,14 +357,14 @@ export async function GET(request: Request) {
           );
 
         // --------------------------------------------------
-        // ONLINE ATTENDANCE RESULT
+        // ONLINE ATTENDANCE
         // --------------------------------------------------
 
         return {
           StudentID: student.StudentID,
           Name: student.Name,
           Phone: student.Phone,
-          Email: student.Email || "",
+          Email: student.Email,
 
           Present:
             totalDuration >=
@@ -398,7 +403,7 @@ export async function GET(request: Request) {
       );
 
     // --------------------------------------------------
-    // DEBUG LOGGING
+    // DEBUG
     // --------------------------------------------------
 
     console.log(
@@ -411,8 +416,14 @@ export async function GET(request: Request) {
     );
 
     console.log(
-      "TODAY:",
-      today
+      "OFFLINE STUDENTS:",
+      offlineAttendance.map(
+        (student) => ({
+          name: student.Name,
+          phone: student.Phone,
+          studentId: student.StudentID,
+        })
+      )
     );
 
     console.log(
@@ -421,7 +432,6 @@ export async function GET(request: Request) {
 
     console.log(
       attendance.map((student) => ({
-        studentID: student.StudentID,
         name: student.Name,
         phone: student.Phone,
         present: student.Present,
@@ -449,7 +459,6 @@ export async function GET(request: Request) {
       presentStudents.map((student) => ({
         name: student.Name,
         phone: student.Phone,
-        mode: student.Mode,
       }))
     );
 

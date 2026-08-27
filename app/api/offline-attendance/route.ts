@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { parse } from "csv-parse/sync";
-import { appendOfflineAttendance } from "@/lib/googleSheets";
+import {
+  appendOfflineAttendance,
+  hasOfflineAttendance,
+} from "@/lib/googleSheets";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,17 +18,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Remove spaces and special characters
+    // --------------------------------------------------
+    // FORMAT PHONE NUMBER
+    // --------------------------------------------------
+
     let formattedPhone = String(phone).replace(
       /\D/g,
       ""
     );
 
-    // If user entered only 10 digits,
-    // add India's country code
     if (formattedPhone.length === 10) {
       formattedPhone = "91" + formattedPhone;
     }
+
+    // --------------------------------------------------
+    // READ STUDENT CSV
+    // --------------------------------------------------
 
     const csvPath = path.join(
       process.cwd(),
@@ -43,7 +51,10 @@ export async function POST(req: NextRequest) {
       skip_empty_lines: true,
     });
 
-    // Find student by phone number
+    // --------------------------------------------------
+    // FIND STUDENT
+    // --------------------------------------------------
+
     const student = students.find(
       (s: any) =>
         String(s.Phone).replace(/\D/g, "") ===
@@ -57,7 +68,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Indian date
+    // --------------------------------------------------
+    // INDIAN DATE
+    // --------------------------------------------------
+
     const today = new Intl.DateTimeFormat(
       "en-CA",
       {
@@ -68,29 +82,54 @@ export async function POST(req: NextRequest) {
       }
     ).format(new Date());
 
-    const time = new Date().toISOString();
+    // --------------------------------------------------
+    // CHECK IF ALREADY MARKED TODAY
+    // --------------------------------------------------
 
-    // Save offline attendance into the
-    // appropriate Batch tab.
-    await appendOfflineAttendance(
-      [
+    const alreadyMarked =
+      await hasOfflineAttendance(
         today,
         batch,
-        student.StudentID,
-        student.Name,
-        student.Phone,
-        student.Email || "",
-        "Present",
-        time,
-        "",
-        0,
-        "Offline",
-      ],
-      batch
-    );
+        String(student.StudentID)
+      );
+
+    if (alreadyMarked) {
+      return NextResponse.json({
+        success: false,
+        alreadyMarked: true,
+        message:
+          "⚠️ Attendance already marked for today.",
+      });
+    }
+
+    // --------------------------------------------------
+    // SAVE TO TEMPORARY OFFLINE SHEET
+    // --------------------------------------------------
+
+    const time = new Date().toISOString();
+
+    await appendOfflineAttendance([
+      today,
+      batch,
+      student.StudentID,
+      student.Name,
+      student.Phone,
+      time,
+      "Offline",
+    ]);
+
+    // --------------------------------------------------
+    // SUCCESS
+    // --------------------------------------------------
 
     return NextResponse.json({
       success: true,
+      alreadyMarked: false,
+      student: {
+        StudentID: student.StudentID,
+        Name: student.Name,
+        Phone: student.Phone,
+      },
       message: `✅ Welcome ${student.Name}! Attendance marked successfully.`,
     });
   } catch (error: any) {
